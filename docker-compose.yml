@@ -1,0 +1,74 @@
+services:
+  gateway-service:
+    build: ./gateway-service
+    ports:
+      - "8080:8080"
+    depends_on:
+      - authentication-service
+      - task-tracker
+    networks:
+      - app-network
+
+  authentication-service:
+    build: ./authentication-service
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://authentication-db:5432/authentication
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      - authentication-db
+    networks:
+      - app-network
+
+  task-tracker:
+    build: ./task-tracker
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://task-tracker-db:5432/task-tracker
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+    depends_on:
+      - task-tracker-db
+    networks:
+      - app-network
+
+  authentication-db:
+    image: postgres:17
+    container_name: authentication-db
+    restart: always
+    environment:
+      POSTGRES_DB: authentication
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"   # внешний порт для доступа
+    networks:
+      - app-network
+    volumes:
+      - authentication_data:/var/lib/postgresql/data
+
+  task-tracker-db:
+    image: postgres:17
+    container_name: task-tracker-db
+    restart: always
+    environment:
+      POSTGRES_DB: task-tracker
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5434:5432"
+    networks:
+      - app-network
+    volumes:
+      - tasktracker_data:/var/lib/postgresql/data
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  authentication_data:
+  tasktracker_data:
