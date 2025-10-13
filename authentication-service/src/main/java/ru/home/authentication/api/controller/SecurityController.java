@@ -9,16 +9,19 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import ru.home.authentication.api.dto.SignInDto;
 import ru.home.authentication.api.dto.SignUpDto;
 import ru.home.authentication.api.jwt.JwtToken;
+import ru.home.authentication.kafka.producer.UserEventProducer;
 import ru.home.authentication.store.entities.UserEntity;
 import ru.home.authentication.store.repositories.UserRepository;
 
 @RestController
 @RequestMapping("/auth")
 @RequiredArgsConstructor
+@Transactional
 public class SecurityController {
 
     private final UserRepository userRepository;
@@ -28,6 +31,8 @@ public class SecurityController {
     private final AuthenticationManager authenticationManager;
 
     private final JwtToken jwtToken;
+
+    private final UserEventProducer userEventProducer;
 
 
     @PostMapping("/signup")
@@ -46,12 +51,14 @@ public class SecurityController {
 
         userRepository.save(user);
 
+        userEventProducer.sendUserRegisteredEvent(signUpDto.getEmail(), signUpDto.getUsername());
+
         return ResponseEntity.status(HttpStatus.OK).body(user);
     }
 
     @PostMapping("/signin")
     public ResponseEntity<?> signIn(@RequestBody SignInDto signInDto) {
-        Authentication authentication = null;
+        Authentication authentication;
         try {
             authentication = authenticationManager.authenticate(
                     new UsernamePasswordAuthenticationToken(signInDto.getUsername(), signInDto.getPassword())

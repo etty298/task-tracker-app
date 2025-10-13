@@ -17,8 +17,17 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://authentication-db:5432/authentication
       SPRING_DATASOURCE_USERNAME: postgres
       SPRING_DATASOURCE_PASSWORD: postgres
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       - authentication-db
+      - kafka
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka...' &&
+        cub kafka-ready -b kafka:9092 40 &&
+        echo 'Kafka is ready, starting Authentication Service...' &&
+        java -jar /app/app.jar
+      "
     networks:
       - app-network
 
@@ -32,6 +41,25 @@ services:
       SPRING_DATASOURCE_PASSWORD: postgres
     depends_on:
       - task-tracker-db
+    networks:
+      - app-network
+
+  notification-service:
+    build: ./notification-service
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+    depends_on:
+      - authentication-service
+      - kafka
+    command: >
+      bash -c "
+        echo 'Waiting for Kafka...' &&
+        cub kafka-ready -b kafka:9092 40 &&
+        echo 'Kafka is ready, starting Notification Service...' &&
+        java -jar /app/app.jar
+      "
     networks:
       - app-network
 
@@ -64,6 +92,52 @@ services:
       - app-network
     volumes:
       - tasktracker_data:/var/lib/postgresql/data
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.7.0
+    container_name: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    networks:
+      - app-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.7.0
+    container_name: kafka
+    ports:
+      - "9092:9092"
+    environment:
+      # Основные настройки Kafka
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+
+      # Чтобы не было ошибки replicationFactor > brokers
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+
+      # Разрешаем автосоздание топиков (на случай, если Spring создаст их сам)
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+
+      # Имя хоста, чтобы Spring смог подключиться
+      KAFKA_ADVERTISED_HOST_NAME: kafka
+    depends_on:
+      - zookeeper
+    command: >
+      bash -c "
+      echo 'Waiting for Zookeeper...' &&
+      cub zk-ready zookeeper:2181 40 &&
+      echo 'Zookeeper is ready, starting Kafka...' &&
+      /etc/confluent/docker/run
+      "
+    networks:
+      - app-network
+
 
 networks:
   app-network:
