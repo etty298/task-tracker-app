@@ -1,5 +1,6 @@
 package ru.home.tasktracker.api.controller;
 
+import io.micrometer.core.instrument.Counter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
@@ -34,6 +35,9 @@ public class ProjectController {
      private final ProjectDtoFactory projectDtoFactory;
 
      private final ControllerHelper controllerHelper;
+
+    private final Counter createProjectCounter;
+
 
     public static final String FETCH_PROJECT = "/api/projects";
     public static final String CREATE_PROJECT = "/api/projects";
@@ -92,6 +96,7 @@ public class ProjectController {
                         .ownerName(ownerName)
                         .build()
         );
+        createProjectCounter.increment();
         // Преобразуем ProjectEntity → ProjectDto
         return projectDtoFactory.makeProjectDto(project);
     }

@@ -138,6 +138,36 @@ services:
     networks:
       - app-network
 
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
+    volumes:
+      # provisioning папки
+      - ./task-tracker/metrics/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources
+      - ./task-tracker/metrics/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards
+      # JSON дашборды
+      - ./task-tracker/metrics/grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./task-tracker/metrics/config/prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    depends_on:
+      - task-tracker
+    networks:
+      - app-network
 
 networks:
   app-network:
